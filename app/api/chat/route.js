@@ -1,27 +1,20 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const systemPrompt = `Accurate Information: Always provide accurate and up-to-date first aid guidance based on recognized medical guidelines. Ensure that the instructions are clear, concise, and easy to follow.
+const systemPrompt = `
+Unit Test Case Generator: Your task is to create comprehensive unit test cases for the given code. 
+Ensure the following:
+1. Cover edge cases, typical cases, and invalid inputs.
+2. Include meaningful assertions for the behavior of each function.
+3. Use a popular testing framework (e.g., Pytest for Python, JUnit for Java).
+4. Provide the expected outputs where applicable.
+5. Ensure clarity and correctness in the test cases.
+6. Format the test cases in a structured, readable style for clean display in Markdown.
+7. Include explanations for each test case where necessary.
 
-Safety First: Emphasize safety in all recommendations. Guide users to protect themselves and the injured person, and to avoid actions that could cause further harm.
-
-Emergency Awareness: If the situation is severe or life-threatening, instruct the user to call emergency services immediately. Always prioritize contacting professional medical help for serious conditions.
-
-Step-by-Step Guidance: Break down first aid procedures into simple, step-by-step instructions. Make sure each step is easy to understand and follow, especially for users with no medical background.
-
-Calm and Reassuring Tone: Maintain a calm, reassuring tone to help users stay composed during stressful situations. Offer encouragement and support throughout the interaction.
-
-Customization: Ask relevant questions to tailor the guidance to the specific situation. Consider factors like the type and severity of the injury, the environment, and the resources available.
-
-Cultural Sensitivity: Be mindful of cultural differences in medical practices and first aid approaches. Provide guidance that is respectful and appropriate for users from diverse backgrounds.
-
-Limitations and Boundaries: Clearly communicate the limits of the chatbot’s capabilities. Remind users that while the chatbot can offer first aid guidance, it is not a substitute for professional medical advice or emergency services.
-
-Follow-Up Care: Encourage users to seek follow-up care after administering first aid. Provide information on what to monitor for and when to seek further medical attention.
-
-Confidentiality and Privacy: Respect user privacy and confidentiality in all interactions. Ensure that the information shared by users is handled securely and appropriately.
-
-`
+Input: A code snippet.
+Output: Well-structured, readable unit test cases with clear formatting.
+`;
 
 export async function POST(req) {
   try {
@@ -30,8 +23,9 @@ export async function POST(req) {
       baseURL: "https://openrouter.ai/api/v1",
     });
 
-    const data = await req.json();
+    const data = await req.json(); // Input data containing the code snippet.
 
+    // Send the system prompt and input code to the LLaMA model.
     const completion = await openai.chat.completions.create({
       messages: [{ role: 'system', content: systemPrompt }, ...data],
       model: "meta-llama/llama-3.1-8b-instruct:free",
@@ -43,21 +37,28 @@ export async function POST(req) {
         const encoder = new TextEncoder();
 
         try {
+          let responseText = ''; // Accumulate the response text.
+
           for await (const chunk of completion) {
             const content = chunk.choices[0]?.delta?.content;
             if (content) {
-              const text = encoder.encode(content);
-              controller.enqueue(text);
+              responseText += content;
             }
           }
+
+          // Format the accumulated response in Markdown for readability.
+          const formattedResponse = `# Unit Test Cases\n\n${responseText}`;
+
+          controller.enqueue(encoder.encode(formattedResponse));
         } catch (err) {
-          controller.error(err);
+          controller.error(err); // Handle errors in the stream.
         } finally {
-          controller.close();
+          controller.close(); // Close the stream.
         }
       },
     });
 
+    // Return the stream response with formatted test cases.
     return new NextResponse(stream);
   } catch (error) {
     console.error('Error in POST handler:', error);
